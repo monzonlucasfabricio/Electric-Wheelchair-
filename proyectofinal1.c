@@ -172,6 +172,8 @@ int ME_CONTROL(void){
         float sumaTX = 0;
         float sumaTY = 0;
         /*analogWrite(pwm,(2*V))*/
+        
+        /* Tomar N valores para sacar un promedio */
         for (uint8_t i = 0; i<N_AVG ; i++){
           x = analogRead(JoyX);
           y = analogRead(JoyY);
@@ -312,15 +314,18 @@ int ME_CONTROL(void){
         Serial.println (steps);
         Step.moveTo(steps);
         Step.run();
-      break;}
+      }
+      break;
       /*case CONFIG:
       {
         // Do nothing
       }
-      break;*/
+      break;
+      */
+      
       default:
       {
-        
+       // Do nothing 
       }
       break;
       
