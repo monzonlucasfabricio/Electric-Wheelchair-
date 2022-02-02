@@ -310,15 +310,18 @@ int ME_CONTROL(void){
         Serial.println (steps);
         Step.moveTo(steps);
         Step.run();
-      break;}
-      /*case CONFIG:
+      }
+      break;
+      /*
+      case CONFIG:
       {
         // Do nothing
       }
-      break;*/
+      break;
+      */
       default:
       {
-        
+        // Do nothing
       }
       break;
       
