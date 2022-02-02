@@ -4,6 +4,8 @@
 #include <math.h>
 #define N_AVG 255
 
+// probando pull request
+
 //Pins y Variables.
   int JoyX = PA0;
   int pwm = PA2;
