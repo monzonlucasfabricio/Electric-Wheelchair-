@@ -2,7 +2,12 @@
 #include <AccelStepper.h>
 #include <MultiStepper.h>
 #include <math.h>
+#include "uTimerLib.h"
+
 #define N_AVG 255
+#define LEFT -1
+#define RIGHT 1
+#define V_MIN 300
 
 //Pins y Variables.
   int JoyX = PA0;
@@ -20,6 +25,8 @@
   int Sact = 0;
   int steps = 0;
   int caso;
+  int Ang = 0;
+  int V = 0;
   
   AccelStepper Step(1, StepPulso, StepDir);
   
@@ -41,9 +48,12 @@
   int ME_CONTROL(void);
   double RVGrad(void);
   int RVVel(void);
+  void goToSteady(void);
 
 void setup() {
   Serial.begin(115200);
+  // Creo un timer para llevar el sistema a Steady si pasan 5 segundos sin movimiento
+  TimerLib.setInterval_s(goToSteady, 10);
 
   //Pinout
   pinMode (JoyX, INPUT);
@@ -77,6 +87,11 @@ void loop() {
 
 }
 
+void goToSteady(void){
+  if (V == 0){
+     State = STD;
+  }
+}
 
 double angulo(int a, int b){
   int deltax = a - 2048;
@@ -113,25 +128,40 @@ int RVVel(void){
 
 int ME_CONTROL(void){
   static int count = 0;
-  double Ang = 0;
-  int V = 0;
+  static int diff = 0;
+  static int temp = 0;
+  static int move_step = 0;
+  
+  
   switch(State){
       case INI:
       {
+          count++;
           Serial.println ("Saludo display");
           //Entrar en modo calibracion 
           //Ininiciar contador de Velocidad, Bateria y Temperatura
-          if (count == 10){
+          if (count == 2){
+            Serial.println("Voy a modo run");
             lastState = State;
-            State = RUN;
+            State = CAL;
+            count = 0;
           }
-          count++; 
+           
       }
       break;
       case CAL:
       {
           //Buscar 0 haciendo una rotacion total de la rueda
-          Serial.println ("calibrando...");
+          count++;
+          Serial.println ("Calibrando");
+          //Entrar en modo calibracion 
+          //Ininiciar contador de Velocidad, Bateria y Temperatura
+          if (count == 1000){
+            Serial.println("Voy a Steady State");
+            lastState = State;
+            State = STD;
+            count = 0;
+          }
           /* while(FlagDet == 0){
             bool ret = digitalRead(CalDet);
             if (ret != HIGH){
@@ -142,14 +172,25 @@ int ME_CONTROL(void){
               FlagDet = 1;
             }
           }*/
-          lastState = State;
-          //State = STD;
-          State = RUN;
       }
       break;
       case STD:
       {
-        //Display print("Listo para moverse")
+        Serial.println("Steady State");
+        double grad = RVGrad();
+        int vel = RVVel();
+        if (vel > 300 && (grad > 100 || grad < 80)){
+          lastState = State;
+          State = RUN;
+        }
+        if (vel > 300 && (grad < 100 || grad > 90)){
+          lastState = RUN;
+          State = RUN;
+        }
+        if (lastState == CAL && vel > 0){
+          lastState = State;
+          State = RUN;
+        }
         /*double Ang = RVGrad();
         int V = RVVel();  
         DGrad = abs(Anglast - Ang);
@@ -163,15 +204,21 @@ int ME_CONTROL(void){
       break;
       case RUN:
       {
-        Serial.println ("Running");      
+        Serial.println ("Running");
+
+        // Variable declaration
         int x,y;
         int sumaX[N_AVG];
         int sumaY[N_AVG];
         float sumaTX = 0;
         float sumaTY = 0;
+
         /*analogWrite(pwm,(2*V))*/
         for (uint8_t i = 0; i<N_AVG ; i++){
+          //Para usar con platformio descomentar las lineas de analogReadResolution(12)
+          //analogReadResolution(12);
           x = analogRead(JoyX);
+          //analogReadResolution(12);
           y = analogRead(JoyY);
           sumaX[i] = x;
           sumaY[i] = y;
@@ -193,139 +240,136 @@ int ME_CONTROL(void){
           sumaTY = 0;
         }
         
-        
-        Ang = angulo(sumaTX,sumaTY);
+        bool sig = 0;
+        temp = angulo(sumaTX,sumaTY);
+
+        if (temp < 0) sig = 1;
+        if (temp >= 0) sig = 0;
+
+        Ang = abs(temp);
         V = PyDist(sumaTX,sumaTY);
+
+        if (V < 300){
+          V = 0;
+          
+        }
+        if (V == 0 && Ang < 80){
+          Ang = 90;
+        }
+
         Serial.print ("El angulo seleccionado es:");
         Serial.println (Ang);
         Serial.print ("La velocidad seleccionada es:");
         Serial.println (V);
-        if (0 <= Ang < 5.625){
+
+        if (Ang >= 0 && Ang < 5.5){
           //Caso = 0; 
           Sobj = 400;
-          steps = Sobj - Sact;
-          Sact = Sobj; 
         }
-        else if (5.625 <= Ang < 16.875){
+        else if (Ang >= 5.625 && Ang < 16.875){
           //Caso = 1; 
           Sobj = 350;
-          steps = Sobj - Sact;
-          Sact = Sobj;
         }
-        else if (16.875 <= Ang < 28.125){
+        else if (Ang >= 16.875 && Ang < 28.125){
           //Caso = 2;
           Sobj = 300;
-          steps = Sobj - Sact;
-          Sact = Sobj;
         }
-        else if (28.125 <= Ang < 39.375){
+        else if (Ang >= 28.125 && Ang < 39.375){
           //Caso = 3;
           Sobj = 250;
-          steps = Sobj - Sact;
-          Sact = Sobj;
         }
-        else if (39.375 <= Ang < 50.625){
+        else if (Ang >= 39.375 && Ang < 50.625){
           //Caso = 4;
           Sobj = 200;
-          steps = Sobj - Sact;
-          Sact = Sobj;
         }
-        else if (50.625 <= Ang < 61.875){
+        else if (Ang >= 50.625 && Ang < 61.875){
           //Caso = 5;
           Sobj = 150;
-          steps = Sobj - Sact;
-          Sact = Sobj;
         }
-        else if (61.875 <= Ang < 73.125){
+        else if (Ang >= 61.875 && Ang < 73.125){
           //Caso = 6;
           Sobj = 100;
-          steps = Sobj - Sact;
-          Sact = Sobj;
         }
-        else if (73.125 <= Ang < 84.375){
+        else if (Ang >= 73.125 && Ang < 84.375){
           //Caso = 7;
           Sobj = 50;
-          steps = Sobj - Sact;
-          Sact = Sobj;
         }
-        else if (84.375 <= Ang <= 95.625){
+        else if (Ang >= 84.375 && Ang < 90){
           //Caso = 8;
           Sobj = 0;
-          steps = Sobj - Sact;
-          Sact = Sobj;
         }
-        else if (95.625 < Ang <= 106.875){
+        else if (Ang >= 90 && Ang < 95.625){
+          Sobj = 0;
+        }
+        else if (Ang >= 95.625 && Ang <= 106.875){
           //Caso = 9;
           Sobj = -50;
-          steps = Sobj - Sact;
-          Sact = Sobj;
         }
-        else if (106.875 < Ang <= 118.125){
+        else if (Ang >= 106.875 && Ang <= 118.125){
           //Caso = 10;
           Sobj = -100;
-          steps = Sobj - Sact;
-          Sact = Sobj;
         }
-        else if (118.125 < Ang <= 129.375){
+        else if (Ang >= 118.125 && Ang <= 129.375){
           //Caso = 11;
           Sobj = -150;
-          steps = Sobj - Sact;
-          Sact = Sobj;
         }
-        else if (129.375 < Ang <= 140.625){
+        else if (Ang >= 129.375 && Ang <= 140.625){
           //Caso = 12;
           Sobj = -200;
-          steps = Sobj - Sact;
-          Sact = Sobj;
         }
-        else if (140.625 < Ang <= 151.875){
+        else if (Ang >= 140.625 && Ang <= 151.875){
           //Caso = 13;
           Sobj = -250;
-          steps = Sobj - Sact;
-          Sact = Sobj;
         }
-        else if (151.875 < Ang <= 163.125){
+        else if (Ang >= 151.875 && Ang <= 163.125){
           //Caso = 14;
           Sobj = -300;
-          steps = Sobj - Sact;
-          Sact = Sobj;
         }
-        else if (163.125 < Ang <= 174.375){
+        else if (Ang >= 163.125 && Ang <= 174.375){
           //Caso = 15;
           Sobj = -350;
-          steps = Sobj - Sact;
-          Sact = Sobj;
         }
-        else if (174.375 < Ang <= 180){
+        else if (Ang >= 174.375 && Ang <= 180){
           //Caso = 16;
           Sobj = -400;
-          steps = Sobj - Sact;
-          Sact = Sobj;
         }
         else{
           //Caso = 17;
           Sobj = 0;
-            }
-        Serial.print ("Nos movemos");
-        Serial.println (steps);
-        Step.moveTo(steps);
-        Step.run();
+        }
+
+        diff = Sobj - steps;
+        if (diff != 0){
+          Serial.print ("Nos movemos");
+          Serial.println (steps);
+          
+          if (Ang >= 90 && diff < 0){
+            steps--;
+            move_step = LEFT;
+          }
+          else if (Ang >= 90 && diff > 0){
+            steps++;
+            move_step = RIGHT;
+          }
+          else if (Ang < 90 && diff > 0){
+            steps++;
+            move_step = RIGHT;
+          }
+          else if (Ang < 90 && diff < 0){
+            steps--;
+            move_step = LEFT;
+          }
+          // Si no funciona el 1 y -1, cambiar la variable move_step por steps en la siguiente linea
+          Step.moveTo(move_step);
+          Step.run();
+        }
       }
       break;
-      /*
-      case CONFIG:
-      {
-        // Do nothing
-      }
-      break;
-      */
       default:
       {
         // Do nothing
       }
       break;
-      
   }
-
   return 0;
 }
