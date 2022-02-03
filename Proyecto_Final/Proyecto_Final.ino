@@ -2,10 +2,12 @@
 #include <AccelStepper.h>
 #include <MultiStepper.h>
 #include <math.h>
+#include "uTimerLib.h"
 
 #define N_AVG 255
 #define LEFT -1
 #define RIGHT 1
+#define V_MIN 300
 
 //Pins y Variables.
   int JoyX = PA0;
@@ -46,9 +48,12 @@
   int ME_CONTROL(void);
   double RVGrad(void);
   int RVVel(void);
+  void goToSteady(void);
 
 void setup() {
   Serial.begin(115200);
+  // Creo un timer para llevar el sistema a Steady si pasan 5 segundos sin movimiento
+  TimerLib.setInterval_s(goToSteady, 10);
 
   //Pinout
   pinMode (JoyX, INPUT);
@@ -82,6 +87,11 @@ void loop() {
 
 }
 
+void goToSteady(void){
+  if (V == 0){
+     State = STD;
+  }
+}
 
 double angulo(int a, int b){
   int deltax = a - 2048;
@@ -120,26 +130,38 @@ int ME_CONTROL(void){
   static int count = 0;
   static int diff = 0;
   static int temp = 0;
-  static int move = 0;
+  static int move_step = 0;
+  
   
   switch(State){
       case INI:
       {
+          count++;
           Serial.println ("Saludo display");
           //Entrar en modo calibracion 
           //Ininiciar contador de Velocidad, Bateria y Temperatura
           if (count == 2){
             Serial.println("Voy a modo run");
             lastState = State;
-            State = RUN;
+            State = CAL;
+            count = 0;
           }
-          count++; 
+           
       }
       break;
       case CAL:
       {
           //Buscar 0 haciendo una rotacion total de la rueda
-          Serial.println ("calibrando...");
+          count++;
+          Serial.println ("Calibrando");
+          //Entrar en modo calibracion 
+          //Ininiciar contador de Velocidad, Bateria y Temperatura
+          if (count == 1000){
+            Serial.println("Voy a Steady State");
+            lastState = State;
+            State = STD;
+            count = 0;
+          }
           /* while(FlagDet == 0){
             bool ret = digitalRead(CalDet);
             if (ret != HIGH){
@@ -150,14 +172,25 @@ int ME_CONTROL(void){
               FlagDet = 1;
             }
           }*/
-          lastState = State;
-          //State = STD;
-          State = RUN;
       }
       break;
       case STD:
       {
-        //Display print("Listo para moverse")
+        Serial.println("Steady State");
+        double grad = RVGrad();
+        int vel = RVVel();
+        if (vel > 300 && (grad > 100 || grad < 80)){
+          lastState = State;
+          State = RUN;
+        }
+        if (vel > 300 && (grad < 100 || grad > 90)){
+          lastState = RUN;
+          State = RUN;
+        }
+        if (lastState == CAL && vel > 0){
+          lastState = State;
+          State = RUN;
+        }
         /*double Ang = RVGrad();
         int V = RVVel();  
         DGrad = abs(Anglast - Ang);
@@ -182,9 +215,10 @@ int ME_CONTROL(void){
 
         /*analogWrite(pwm,(2*V))*/
         for (uint8_t i = 0; i<N_AVG ; i++){
-          analogReadResolution(12);
+          //Para usar con platformio descomentar las lineas de analogReadResolution(12)
+          //analogReadResolution(12);
           x = analogRead(JoyX);
-          analogReadResolution(12);
+          //analogReadResolution(12);
           y = analogRead(JoyY);
           sumaX[i] = x;
           sumaY[i] = y;
@@ -214,6 +248,14 @@ int ME_CONTROL(void){
 
         Ang = abs(temp);
         V = PyDist(sumaTX,sumaTY);
+
+        if (V < 300){
+          V = 0;
+          
+        }
+        if (V == 0 && Ang < 80){
+          Ang = 90;
+        }
 
         Serial.print ("El angulo seleccionado es:");
         Serial.println (Ang);
@@ -252,7 +294,7 @@ int ME_CONTROL(void){
           //Caso = 7;
           Sobj = 50;
         }
-        else if (Ang >= 84.375 && Ang <= 90){
+        else if (Ang >= 84.375 && Ang < 90){
           //Caso = 8;
           Sobj = 0;
         }
@@ -301,24 +343,24 @@ int ME_CONTROL(void){
           Serial.print ("Nos movemos");
           Serial.println (steps);
           
-          if (Ang > 90 && diff < 0){
+          if (Ang >= 90 && diff < 0){
             steps--;
-            move = LEFT;
+            move_step = LEFT;
           }
-          else if (Ang > 90 && diff > 0){
+          else if (Ang >= 90 && diff > 0){
             steps++;
-            move = RIGHT;
+            move_step = RIGHT;
           }
           else if (Ang < 90 && diff > 0){
             steps++;
-            move = RIGHT;
+            move_step = RIGHT;
           }
           else if (Ang < 90 && diff < 0){
             steps--;
-            move = LEFT;
+            move_step = LEFT;
           }
-          // Si no funciona el 1 y -1, cambiar la variable move por steps en la siguiente linea
-          Step.moveTo(move);
+          // Si no funciona el 1 y -1, cambiar la variable move_step por steps en la siguiente linea
+          Step.moveTo(move_step);
           Step.run();
         }
       }
