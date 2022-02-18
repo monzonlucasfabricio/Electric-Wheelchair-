@@ -3,22 +3,36 @@
 #include <MultiStepper.h>
 #include <math.h>
 #include "uTimerLib.h"
+#include <LiquidCrystal.h> 
+#include "Button.h"
 
 #define N_AVG 255
 #define LEFT -1
 #define RIGHT 1
 #define V_MIN 300
+//#define Button PB0
+//Pines
 
-//Pins y Variables.
   int JoyX = PA0;
-  int pwm = PA2;
   int JoyY = PA1;
-  int StepPulso = PA7;
-  int StepDir = PA6 ;
-  int StepPos = 0;
-  int flag = 0;
-  int X,Y,dist;
+  int pwm = PA2;
   int CalDet = PA3;
+  int Bat = PA4;
+  int temp_in = PA5;
+  int StepDir = PA6 ;
+  int StepPulso = PA7;
+  const bool pullup = true;
+  Button ButtonMenu(PB0, pullup);
+  const int buttonPin = PB0;
+  int pwmdir = PA8;
+  int FRSw = PA9;
+  int FAN = PA10;
+  int HALL = PB4;
+  int Alarm = PB5; 
+  const int rs = PB11, en = PB10, d4 = PB9, d5 = PB8, d6 = PB7, d7 = PB6; // Declaramos variables de LCD
+  
+//Variables.
+
   double DGrad = 0;
   double Anglast = 90; 
   int Sobj = 0;
@@ -27,7 +41,18 @@
   int caso;
   int Ang = 0;
   int V = 0;
-  
+  int StepPos = 0;
+  int flag = 0;
+  int X,Y,dist;
+  int displayflag = 0; 
+  int conta = 0; 
+  int TempC;
+  int buttonPushCounter = 0;   // counter for the number of button presses
+  int buttonState = 0;         // current state of the button
+  int lastButtonState = 0;     // previous state of the button
+
+//Inicializacion
+  LiquidCrystal lcd(rs,en,d4,d5,d6,d7); //Inciamos LCD
   AccelStepper Step(1, StepPulso, StepDir);
   
 //Maquina de Estados.  
@@ -49,12 +74,23 @@
   double RVGrad(void);
   int RVVel(void);
   void goToSteady(void);
+  void buttonCheck(void);
+  int LCD(void);
+
 
 void setup() {
   Serial.begin(115200);
   // Creo un timer para llevar el sistema a Steady si pasan 5 segundos sin movimiento
   TimerLib.setInterval_s(goToSteady, 10);
 
+ 
+  //Pantalla LCD
+  lcd.begin(16,2); //definimos el tamaño del lcd 16*2
+  lcd.setCursor(0,0);
+  lcd.print("FREEDOM OF WHEEL");
+  lcd.setCursor(3,1);
+  lcd.print("Bienvenido");
+  
   //Pinout
   pinMode (JoyX, INPUT);
   pinMode (JoyY, INPUT);
@@ -62,12 +98,13 @@ void setup() {
   pinMode (StepDir, OUTPUT);
   pinMode (pwm, OUTPUT);
   pinMode (CalDet, INPUT);
-
+  pinMode (PC13, OUTPUT);
+  pinMode (buttonPin, INPUT);
+  pinMode (FRSw, INPUT);
+  
   //Stepper
-  AccelStepper Step(1, StepPulso, StepDir);
   Step.setMaxSpeed (10000);
   Step.setSpeed (10000);
-  Step.setCurrentPosition(0);
   Step.setAcceleration(50000);
   digitalWrite(StepPulso, LOW);
   digitalWrite(StepDir, LOW);
@@ -75,24 +112,35 @@ void setup() {
   //Etados
   State = INI;
   lastState = INI;
-
+  
+  delay(4000);
+  lcd.clear();
 }
 
 
 void loop() {
+  buttonCheck();  
   int ret = ME_CONTROL();
   if (ret != 0){
-    // Control error
+    // Control error}
+  }
+  //sensors.requestTemperatures();
+  //TempC = (sensors.getTempCByIndex(0));
+  LCD();
+  Serial.println(FRSw);
   }
 
-}
 
+
+//Sentencias creadas
 void goToSteady(void){
   if (V == 0){
      State = STD;
   }
 }
 
+
+//Programas de Calculo 
 double angulo(int a, int b){
   int deltax = a - 2048;
   int deltay = b - 2048;
@@ -110,13 +158,13 @@ int PyDist(int a, int b){
 }
 
 
+//Programas de lectura de variables
 double RVGrad(void){
   X = analogRead(JoyX);
   Y = analogRead(JoyY);
   double ang = angulo(X,Y);
   return ang;
 }
-
 
 int RVVel(void){
   X = analogRead(JoyX);
@@ -126,6 +174,131 @@ int RVVel(void){
 }
 
 
+//Contador de pulsos 
+void buttonCheck(void)
+{
+  if (ButtonMenu.check()==LOW){
+    Serial.println("Presionado");
+    buttonPushCounter++;
+    Serial.println(buttonPushCounter);
+  if(buttonPushCounter == 4){
+    buttonPushCounter = 0;
+  }
+    }
+}
+
+
+//Programa del display LCD
+int LCD(void){
+
+
+  switch(buttonPushCounter){
+    case 0:
+    {
+     if (State == INI){
+      Serial.println("Caso 0 - INI");
+      lcd.clear();
+      lcd.setCursor(0,0);
+      lcd.print("INICIANDO");
+      lcd.setCursor(0,1);
+      lcd.print("SISTEMA...");
+      //delay(100);
+     }
+     else if (State == CAL){
+      Serial.println("Caso 0 - CAL");
+      lcd.clear();
+      lcd.setCursor(0,0);
+      lcd.print("CALIBRANDO");
+      lcd.setCursor(0,1);
+      lcd.print("...");
+      //delay(100);
+     }
+     else if (State == STD){
+      Serial.println("Caso 0 - STD");
+      lcd.clear();
+      lcd.setCursor(5,0);
+      lcd.print("Steady");
+      lcd.setCursor(5,1);
+      lcd.print("State.");
+      //delay(100);
+
+     }
+     else if (State == RUN){
+      Serial.println("Caso 0 - RUN");
+      lcd.clear();
+      lcd.setCursor(4,0);
+      lcd.print("Running");
+      lcd.setCursor(5,1);
+      lcd.print("State.");
+      //delay(100);
+
+     }
+    }
+    break;
+
+    case 1:
+    {
+    //Mostrar la velocidad en el display.
+    Serial.println("Caso 1 - Mostrando Velocidad");
+    lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.print("Velocidad:");
+    lcd.setCursor(0,1);
+    lcd.print("km/h");
+    //delay(1000);
+    }
+    break;
+    
+    case 2:
+    {
+    //Mostrar la carga de bateria en el display.
+    Serial.println("Caso 2 - Mostrando carga de bateria");
+    lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.print("Bateria:");
+    lcd.setCursor(0,1);
+    lcd.print("%");
+    //delay(1000);
+    }
+    break;
+
+    case 3:
+    {
+    //Mostrar la temperatura del equipo en el display.
+    int sumaT[N_AVG];
+    int sumaTT = 0;
+    for (uint8_t i = 0; i<N_AVG ; i++){
+      int temp = analogRead(temp_in);
+      temp = temp * 0.08056640625;
+      sumaT[i] = temp;
+
+      sumaTT = sumaTT + sumaT[i];
+    }
+    sumaTT = sumaTT/N_AVG;
+    Serial.println("Caso 3 - Mostrando temperatura del equipo");
+    Serial.print("La temperatura es:");
+    Serial.print(sumaTT);
+    Serial.println("°C"); 
+    lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.print("Temperatura:");
+    lcd.setCursor(0,1);
+    lcd.print(sumaTT);
+    lcd.print("°C");
+    //delay(1000);
+    }
+    break;
+    
+    default:
+    {
+        // Do nothing
+    }
+    break;
+  }
+  
+}
+  
+//Programa de Control 
 int ME_CONTROL(void){
   static int count = 0;
   static int diff = 0;
@@ -136,12 +309,10 @@ int ME_CONTROL(void){
   switch(State){
       case INI:
       {
-          count++;
-          Serial.println ("Saludo display");
-          //Entrar en modo calibracion 
           //Ininiciar contador de Velocidad, Bateria y Temperatura
-          if (count == 2){
-            Serial.println("Voy a modo run");
+          count++;
+          if (count == 1000){
+            //Serial.println("Voy a modo run");
             lastState = State;
             State = CAL;
             count = 0;
@@ -153,11 +324,9 @@ int ME_CONTROL(void){
       {
           //Buscar 0 haciendo una rotacion total de la rueda
           count++;
-          Serial.println ("Calibrando");
           //Entrar en modo calibracion 
-          //Ininiciar contador de Velocidad, Bateria y Temperatura
           if (count == 1000){
-            Serial.println("Voy a Steady State");
+            //Serial.println("Voy a Steady State");
             lastState = State;
             State = STD;
             count = 0;
@@ -176,7 +345,6 @@ int ME_CONTROL(void){
       break;
       case STD:
       {
-        Serial.println("Steady State");
         double grad = RVGrad();
         int vel = RVVel();
         if (vel > 300 && (grad > 100 || grad < 80)){
@@ -204,8 +372,7 @@ int ME_CONTROL(void){
       break;
       case RUN:
       {
-        Serial.println ("Running");
-
+        //Serial.println ("Running");      
         // Variable declaration
         int x,y;
         int sumaX[N_AVG];
@@ -257,10 +424,11 @@ int ME_CONTROL(void){
           Ang = 90;
         }
 
-        Serial.print ("El angulo seleccionado es:");
-        Serial.println (Ang);
-        Serial.print ("La velocidad seleccionada es:");
-        Serial.println (V);
+
+        //Serial.print ("El angulo seleccionado es:");
+        //Serial.println (Ang);
+        //Serial.print ("La velocidad seleccionada es:");
+        //Serial.println (V);
 
         if (Ang >= 0 && Ang < 5.5){
           //Caso = 0; 
@@ -340,30 +508,45 @@ int ME_CONTROL(void){
 
         diff = Sobj - steps;
         if (diff != 0){
-          Serial.print ("Nos movemos");
-          Serial.println (steps);
+          //Serial.print ("Nos movemos");
+          //Serial.println (steps);
           
           if (Ang >= 90 && diff < 0){
-            steps--;
+            steps-=10;
             move_step = LEFT;
           }
           else if (Ang >= 90 && diff > 0){
-            steps++;
+            steps+=10;
             move_step = RIGHT;
           }
           else if (Ang < 90 && diff > 0){
-            steps++;
+            steps+=10;
             move_step = RIGHT;
           }
           else if (Ang < 90 && diff < 0){
-            steps--;
+            steps-=10;
             move_step = LEFT;
           }
           // Si no funciona el 1 y -1, cambiar la variable move_step por steps en la siguiente linea
-          Step.moveTo(move_step);
-          Step.run();
+          //Step.moveTo(steps);
+          //Step.run();
+          Step.runToNewPosition(steps);
+        
+        }
+        switch(FRSw){
+          case HIGH:
+          {
+          Serial.println("Forward");
+          }
+          break;
+          case LOW:
+          {
+          Serial.println("Backwards");            
+          }
+          break;
         }
       }
+      //delay(1);
       break;
       default:
       {
