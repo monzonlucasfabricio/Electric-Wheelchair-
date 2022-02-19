@@ -5,6 +5,19 @@
 #include "uTimerLib.h"
 #include <LiquidCrystal.h> 
 #include "Button.h"
+#include "test.h"
+
+#define TEST
+#define PLATFORMIO
+
+// Only for testing purpose
+#ifdef TEST
+#define JOYSTICK_READ(x) joistick_read(x)
+#define TEMP_READ(x)  temperature_read(x)
+#else
+#define JOISTICK_READ(x) analogRead(x)
+#define TEMP_READ(x) analogRead(x)
+#endif
 
 #define N_AVG 255
 #define LEFT -1
@@ -80,11 +93,11 @@
 
 void setup() {
   Serial.begin(115200);
-  // Creo un timer para llevar el sistema a Steady si pasan 5 segundos sin movimiento
+
+  // Creo un timer para llevar el sistema a Steady si pasan 10 segundos sin movimiento
   TimerLib.setInterval_s(goToSteady, 10);
 
- 
-  //Pantalla LCD
+  //Setup de Pantalla LCD
   lcd.begin(16,2); //definimos el tamaño del lcd 16*2
   lcd.setCursor(0,0);
   lcd.print("FREEDOM OF WHEEL");
@@ -159,15 +172,15 @@ int PyDist(int a, int b){
 
 //Programas de lectura de variables
 double RVGrad(void){
-  X = analogRead(JoyX);
-  Y = analogRead(JoyY);
+  X = ANALOG_READ(JoyX);
+  Y = ANALOG_READ(JoyY);
   double ang = angulo(X,Y);
   return ang;
 }
 
 int RVVel(void){
-  X = analogRead(JoyX);
-  Y = analogRead(JoyY);
+  X = ANALOG_READ(JoyX);
+  Y = ANALOG_READ(JoyY);
   int dist = PyDist(X,Y);
   return dist;
 }
@@ -182,14 +195,13 @@ void buttonCheck(void)
     Serial.println(buttonPushCounter);
   if(buttonPushCounter == 4){
     buttonPushCounter = 0;
-  }
     }
+  }
 }
 
 
 //Programa del display LCD
 int LCD(void){
-
 
   switch(buttonPushCounter){
     case 0:
@@ -266,13 +278,14 @@ int LCD(void){
     //Mostrar la temperatura del equipo en el display.
     int sumaT[N_AVG];
     int sumaTT = 0;
+
     for (uint8_t i = 0; i<N_AVG ; i++){
-      int temp = analogRead(temp_in);
+      int temp = TEMP_READ(temp_in);
       temp = temp * 0.08056640625;
       sumaT[i] = temp;
-
       sumaTT = sumaTT + sumaT[i];
     }
+
     sumaTT = sumaTT/N_AVG;
     Serial.println("Caso 3 - Mostrando temperatura del equipo");
     Serial.print("La temperatura es:");
@@ -382,11 +395,11 @@ int ME_CONTROL(void){
 
         /*analogWrite(pwm,(2*V))*/
         for (uint8_t i = 0; i<N_AVG ; i++){
-          //Para usar con platformio descomentar las lineas de analogReadResolution(12)
-          //analogReadResolution(12);
-          x = analogRead(JoyX);
-          //analogReadResolution(12);
-          y = analogRead(JoyY);
+          #ifdef PLATFORMIO
+          analogReadResolution(12);
+          #endif
+          x = ANALOG_READ(JoyX);
+          y = ANALOG_READ(JoyY);
           sumaX[i] = x;
           sumaY[i] = y;
         }
