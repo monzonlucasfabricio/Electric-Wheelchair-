@@ -96,7 +96,7 @@ void setup() {
   pinMode (JoyY, INPUT);
   pinMode (StepPulso, OUTPUT);
   pinMode (StepDir, OUTPUT);
-  pinMode (pwm, OUTPUT);
+  pinMode (pwm, PWM);
   pinMode (CalDet, INPUT);
   pinMode (PC13, OUTPUT);
   pinMode (buttonPin, INPUT);
@@ -127,7 +127,6 @@ void loop() {
   //sensors.requestTemperatures();
   //TempC = (sensors.getTempCByIndex(0));
   LCD();
-  Serial.println(FRSw);
   }
 
 
@@ -379,6 +378,7 @@ int ME_CONTROL(void){
         int sumaY[N_AVG];
         float sumaTX = 0;
         float sumaTY = 0;
+        int marcha = digitalRead(FRSw);
 
         /*analogWrite(pwm,(2*V))*/
         for (uint8_t i = 0; i<N_AVG ; i++){
@@ -425,10 +425,10 @@ int ME_CONTROL(void){
         }
 
 
-        //Serial.print ("El angulo seleccionado es:");
-        //Serial.println (Ang);
-        //Serial.print ("La velocidad seleccionada es:");
-        //Serial.println (V);
+        Serial.print ("El angulo seleccionado es:");
+        Serial.println (Ang);
+        Serial.print ("La velocidad seleccionada es:");
+        Serial.println (V);
 
         if (Ang >= 0 && Ang < 5.5){
           //Caso = 0; 
@@ -533,15 +533,24 @@ int ME_CONTROL(void){
           Step.runToNewPosition(steps);
         
         }
-        switch(FRSw){
+        uint16_t veljoy;
+        switch(marcha){
           case HIGH:
           {
           Serial.println("Forward");
+          //Enable en 0
+          veljoy = map(V, 0, 2045, 0, 65535);
+          Serial.println(veljoy);
+          pwmWrite(pwm,veljoy);
           }
           break;
           case LOW:
           {
-          Serial.println("Backwards");            
+          Serial.println("Backwards");
+          //Enable en 1 
+          veljoy = map(V, 0, 2045, 0, 65535);
+          Serial.println(veljoy);
+          pwmWrite(pwm,veljoy);           
           }
           break;
         }
