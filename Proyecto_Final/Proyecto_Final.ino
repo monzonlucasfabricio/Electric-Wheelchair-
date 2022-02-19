@@ -14,9 +14,11 @@
 #ifdef TEST
 #define JOYSTICK_READ(x) joistick_read(x)
 #define TEMP_READ(x)  temperature_read(x)
+#define DIRECTION_READ(x) bw_fw(x)
 #else
 #define JOISTICK_READ(x) analogRead(x)
 #define TEMP_READ(x) analogRead(x)
+#define DIRECTION_READ(x) digitalRead(x)
 #endif
 
 #define N_AVG 255
@@ -391,7 +393,7 @@ int ME_CONTROL(void){
         int sumaY[N_AVG];
         float sumaTX = 0;
         float sumaTY = 0;
-        int marcha = digitalRead(FRSw);
+        int marcha = DIRECTION_READ(FRSw);
 
         /*analogWrite(pwm,(2*V))*/
         for (uint8_t i = 0; i<N_AVG ; i++){

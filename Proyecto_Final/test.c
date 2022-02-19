@@ -12,6 +12,11 @@ uint16_t temperature_read(uint8_t x)
     return 250;
 }
 
+bool_t bw_fw(uint8_t x)
+{
+    return 1;
+}
+
 
 
 
